@@ -9,7 +9,7 @@ Users can speak naturally in **English**, **Roman Urdu**, or **Urdu** and receiv
 ## Features
 
 - **Real-time voice interaction** — Web Speech API for speech-to-text in the browser
-- **RAG-powered responses** — TF-IDF retrieval from a local knowledge base feeds context to Llama 3.3 70B via Groq
+- **RAG-powered responses** — TF-IDF retrieval from a local knowledge base feeds context to GPT-OSS 120B via Groq
 - **Text-to-speech output** — Google TTS generates natural-sounding audio replies
 - **Multilingual support** — English, Roman Urdu, and Urdu
 - **Built-in knowledge base** — Pre-loaded with BS/MS programme details, FAQs, scholarships, and fee structures from official FUI documents
@@ -23,8 +23,8 @@ Users can speak naturally in **English**, **Roman Urdu**, or **Urdu** and receiv
 ```
 ┌─────────────┐     ┌─────────────────────────────────┐     ┌──────────┐
 │   Browser    │────▶│         FastAPI Backend          │────▶│  Groq    │
-│  Web Speech  │     │  /chat  /tts  /ingest  /stats   │     │ Llama 3.3│
-│  API (STT)   │◀────│         TF-IDF Vector DB        │◀────│   LLM    │
+│  Web Speech  │     │  /chat  /tts  /ingest  /stats   │     │ GPT-OSS  │
+│  API (STT)   │◀────│         TF-IDF Vector DB        │◀────│  120B    │
 │  gTTS Audio  │     │         Google TTS               │     └──────────┘
 └─────────────┘     └─────────────────────────────────┘
 ```
@@ -33,7 +33,7 @@ Users can speak naturally in **English**, **Roman Urdu**, or **Urdu** and receiv
 |-----------|-----------|---------|
 | Frontend | Vanilla HTML/CSS/JS | Chat UI, speech recognition, audio playback |
 | Backend | FastAPI (Python) | REST API serving all endpoints |
-| LLM | Groq — Llama 3.3 70B Versatile | Generates structured JSON responses |
+| LLM | Groq — GPT-OSS 120B | Generates structured JSON responses |
 | STT | Web Speech API | Browser-native speech recognition |
 | TTS | gTTS (Google) | Converts text responses to MP3 audio |
 | Vector Store | TF-IDF + Cosine Similarity | Lightweight document retrieval |
@@ -181,7 +181,7 @@ curl -X POST http://localhost:8000/ingest \
 
 | Choice | Rationale |
 |--------|-----------|
-| **Groq + Llama 3.3** | Fast inference with structured JSON output support |
+| **Groq + GPT-OSS 120B** | Fast inference with reliable structured output |
 | **TF-IDF** | Zero external dependencies, instant indexing, no GPU required |
 | **gTTS** | Free, reliable, no API key needed for TTS |
 | **Web Speech API** | Native browser support, no third-party STT service required |
