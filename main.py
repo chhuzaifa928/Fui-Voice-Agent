@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import json
 import base64
 import uuid
@@ -99,8 +100,8 @@ async def root():
 
 
 def detect_lang(tts_text: str) -> str:
-    """Detect language from TTS text (Urdu script chars = ur, else en)."""
-    urdu_chars = sum(1 for c in tts_text if "؀" <= c <= "ۿ")
+    """Detect language from TTS text (Urdu/Nastaliq script chars = ur, else en)."""
+    urdu_chars = sum(1 for c in tts_text if "\u0600" <= c <= "\u06FF" or "\uFB50" <= c <= "\uFDFF" or "\uFE70" <= c <= "\uFEFF")
     if urdu_chars > len(tts_text) * 0.2:
         return "ur"
     return "en"
@@ -145,24 +146,32 @@ async def chat(request: ChatRequest):
     messages.append({"role": "user", "content": request.text})
 
     llm_response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=messages,
-        max_tokens=350,
+        max_tokens=500,
         temperature=0.7,
-        response_format={"type": "json_object"},
     )
-    raw = llm_response.choices[0].message.content
+    raw = llm_response.choices[0].message.content or ""
 
     try:
         data = json.loads(raw)
-        reply_text = (data.get("reply") or "").strip()
-        tts_text = (data.get("tts") or reply_text).strip()
-    except (json.JSONDecodeError, AttributeError):
-        reply_text = raw.strip()
-        tts_text = raw.strip()
+    except (json.JSONDecodeError, ValueError):
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+            except (json.JSONDecodeError, ValueError):
+                data = {}
+        else:
+            data = {}
+
+    reply_text = (data.get("reply") or "").strip()
+    tts_text = (data.get("tts") or reply_text).strip()
 
     if not reply_text:
-        reply_text = tts_text
+        reply_text = raw.strip()
+    if not tts_text:
+        tts_text = reply_text
 
     lang = detect_lang(tts_text)
     return {"response": reply_text, "tts_text": tts_text, "lang": lang}
