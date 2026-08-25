@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d0d1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+    }
+
+    header { text-align: center; margin-bottom: 20px; }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { color: #4b5563; font-size: 0.82rem; margin-top: 4px; }
+
+    /* ── Orb ── */
+    .orb-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .orb {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #7c3aed, #1e1b4b);
+      box-shadow: 0 0 30px rgba(124, 58, 237, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }
+
+    .orb.listening {
+      background: radial-gradient(circle at 35% 35%, #7c3aed, #4c1d95);
+      box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7);
+      animation: orbPulse 1.6s ease-out infinite;
+    }
+
+    .orb.thinking {
+      background: radial-gradient(circle at 35% 35%, #d97706, #78350f);
+      box-shadow: 0 0 30px rgba(217, 119, 6, 0.4);
+      animation: orbSpin 1s linear infinite;
+    }
+
+    .orb.speaking {
+      background: radial-gradient(circle at 35% 35%, #059669, #064e3b);
+      box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
+      animation: orbPulse 0.8s ease-out infinite;
+    }
+
+    .orb.paused {
+      background: radial-gradient(circle at 35% 35%, #374151, #111827);
+      box-shadow: 0 0 10px rgba(55, 65, 81, 0.3);
+    }
+
+    @keyframes orbPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+      70%  { box-shadow: 0 0 0 20px rgba(124, 58, 237, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+    }
+
+    @keyframes orbSpin {
+      from { filter: hue-rotate(0deg); }
+      to   { filter: hue-rotate(360deg); }
+    }
+
+    .state-label {
+      font-size: 0.88rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      color: #a78bfa;
+      min-height: 20px;
+    }
+
+    .interim {
+      font-size: 0.8rem;
+      color: #6b7280;
+      font-style: italic;
+      min-height: 18px;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    /* toggle pause */
+    .pause-btn {
+      background: transparent;
+      border: 1px solid #374151;
+      color: #6b7280;
+      border-radius: 20px;
+      padding: 5px 16px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pause-btn:hover { border-color: #a78bfa; color: #a78bfa; }
+    .pause-btn.active { border-color: #7c3aed; color: #c4b5fd; background: rgba(124,58,237,0.1); }
+
+    /* ── Chat ── */
+    .chat-box {
+      width: 100%;
+      max-width: 680px;
+      background: #13132a;
+      border: 1px solid #1f1f3a;
+      border-radius: 16px;
+      padding: 18px;
+      min-height: 300px;
+      max-height: 48vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+      scroll-behavior: smooth;
+    }
+
+    .empty { margin: auto; color: #374151; font-style: italic; font-size: 0.88rem; text-align: center; }
+
+    .msg {
+      padding: 10px 14px;
+      border-radius: 13px;
+      max-width: 80%;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      word-break: break-word;
+      animation: pop 0.2s ease;
+    }
+    @keyframes pop { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
+    .msg.user      { background:#4c1d95; color:#ede9fe; align-self:flex-end; border-bottom-right-radius:4px; }
+    .msg.bot       { background:#1e293b; color:#e2e8f0; align-self:flex-start; border-bottom-left-radius:4px; }
+    .msg.error     { background:#450a0a; color:#fca5a5; align-self:center; font-size:0.82rem; }
+
+    /* ── KB panel ── */
+    .kb-panel {
+      width: 100%;
+      max-width: 680px;
+      background: #13132a;
+      border: 1px solid #1f1f3a;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .kb-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #1f1f3a;
+    }
+    .kb-header span { font-size: 0.78rem; font-weight: 600; color: #a78bfa; letter-spacing: 0.08em; text-transform: uppercase; }
+    .kb-header .arrow { font-size: 0.7rem; color: #4b5563; }
+    .kb-body { padding: 14px 16px; display: none; }
+    .kb-body.open { display: block; }
+    .kb-body textarea {
+      width: 100%;
+      background: #0d0d1a;
+      border: 1px solid #2d2d4e;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 9px 11px;
+      font-size: 0.86rem;
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+      outline: none;
+      margin-bottom: 9px;
+    }
+    .kb-body textarea:focus { border-color: #7c3aed; }
+    .row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+    .btn-ingest {
+      background: #1e3a5f; color: #93c5fd; border: 1px solid #1e40af;
+      border-radius: 7px; padding: 6px 16px; cursor: pointer; font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .btn-ingest:hover { background: #1e40af; }
+    .btn-reset {
+      background: transparent; color: #6b7280; border: 1px solid #374151;
+      border-radius: 7px; padding: 6px 12px; cursor: pointer; font-size: 0.78rem;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .btn-reset:hover { color: #f87171; border-color: #b91c1c; }
+    .kb-stats { font-size: 0.76rem; color: #4b5563; margin-top: 7px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Voice Agent</h1>
+    <p>Web Speech API · Groq LLaMA 3.3 · Google TTS &nbsp;·&nbsp; English &nbsp;/&nbsp; Roman Urdu &nbsp;/&nbsp; اردو</p>
+  </header>
+
+  <!-- Orb -->
+  <div class="orb-wrap">
+    <div class="orb" id="orb" title="Click to pause / resume">🎤</div>
+    <div class="state-label" id="stateLabel">Starting…</div>
+    <div class="interim" id="interim"></div>
+    <button class="pause-btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+    <select id="langSelect" onchange="changeLang()" style="margin-top:4px;background:#13132a;color:#a78bfa;border:1px solid #374151;border-radius:20px;padding:4px 12px;font-size:0.78rem;cursor:pointer;outline:none;">
+      <option value="en-US">🇬🇧 English</option>
+      <option value="en-US" data-hint="roman">🇵🇰 Roman Urdu</option>
+      <option value="ur-PK">🇵🇰 اردو (Urdu)</option>
+    </select>
+  </div>
+
+  <!-- Chat history -->
+  <div class="chat-box" id="chat">
+    <div class="empty" id="empty">Listening — just start speaking…</div>
+  </div>
+
+  <!-- Knowledge base -->
+  <div class="kb-panel">
+    <div class="kb-header" onclick="toggleKB()">
+      <span>Knowledge Base</span>
+      <span class="arrow" id="kbArrow">▼ expand</span>
+    </div>
+    <div class="kb-body" id="kbBody">
+      <textarea id="kbText" placeholder="Paste text here. Separate chunks with a blank line.&#10;The agent uses this as context when answering."></textarea>
+      <div class="row">
+        <button class="btn-ingest" onclick="ingest()">Add to Knowledge Base</button>
+        <button class="btn-reset" onclick="resetDB()">Clear DB</button>
+      </div>
+      <div class="kb-stats" id="kbStats"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    const history = [];
+    let paused   = false;
+    let busy     = false;
+    let recognition = null;
+    let sttLang  = 'en-US';   // updated by language selector
+
+    function changeLang() {
+      const sel = document.getElementById('langSelect');
+      sttLang = sel.value;
+      // restart recognition with new language
+      if (!paused && !busy) {
+        recognition?.abort();
+        setTimeout(startListening, 300);
+      }
+    }
+
+    const orb       = document.getElementById('orb');
+    const stateLabel= document.getElementById('stateLabel');
+    const interimEl = document.getElementById('interim');
+    const pauseBtn  = document.getElementById('pauseBtn');
+    const chatEl    = document.getElementById('chat');
+
+    // ── Check browser support ──────────────────────────────────────────
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setOrb('paused', '🚫', 'Not supported — use Chrome or Edge');
+      pauseBtn.style.display = 'none';
+    } else {
+      startListening();
+    }
+
+    // ── Orb click = pause/resume ───────────────────────────────────────
+    orb.addEventListener('click', togglePause);
+
+    function togglePause() {
+      if (!SR) return;
+      paused = !paused;
+      pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+      pauseBtn.classList.toggle('active', paused);
+      if (paused) {
+        recognition?.abort();
+        setOrb('paused', '⏸', 'Paused — click orb or Resume to continue');
+      } else {
+        if (!busy) startListening();
+      }
+    }
+
+    // ── Core listening loop ────────────────────────────────────────────
+    function startListening() {
+      if (paused || busy || !SR) return;
+
+      recognition = new SR();
+      recognition.lang = sttLang;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setOrb('listening', '🎤', 'Listening…');
+      };
+
+      recognition.onresult = (e) => {
+        const last = e.results[e.results.length - 1];
+        const transcript = last[0].transcript.trim();
+        if (last.isFinal) {
+          interimEl.textContent = '';
+          if (transcript) processText(transcript);
+        } else {
+          interimEl.textContent = transcript;
+        }
+      };
+
+      recognition.onerror = (e) => {
+        interimEl.textContent = '';
+        // "no-speech" is normal — just restart silently
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          addMsg('error', `⚠ Speech error: ${e.error}`);
+        }
+        if (!paused && !busy) setTimeout(startListening, 300);
+      };
+
+      recognition.onend = () => {
+        interimEl.textContent = '';
+        if (!paused && !busy) setTimeout(startListening, 300);
+      };
+
+      recognition.start();
+    }
+
+    // ── Process recognised text ────────────────────────────────────────
+    async function processText(text) {
+      busy = true;
+      recognition?.abort();
+      addMsg('user', text);
+      history.push({ role: 'user', content: text });
+
+      try {
+        // 1 — LLM
+        setOrb('thinking', '⚙️', 'Thinking…');
+        const chatRes = await fetch(`${API}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, history: history.slice(-8) }),
+        });
+        if (!chatRes.ok) throw new Error(`LLM error (${chatRes.status})`);
+        const { response, tts_text, lang } = await chatRes.json();
+        addMsg('bot', response);
+        history.push({ role: 'assistant', content: response });
+
+        // 2 — TTS: use tts_text (Urdu script for Roman Urdu inputs) so gTTS pronounces correctly
+        setOrb('speaking', '🔊', 'Speaking…');
+        const ttsRes = await fetch(`${API}/tts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: tts_text || response, lang: lang || 'en' }),
+        });
+        if (!ttsRes.ok) throw new Error(`TTS error (${ttsRes.status})`);
+        const { audio } = await ttsRes.json();
+        await playAudio(audio);
+
+      } catch (err) {
+        addMsg('error', `⚠ ${err.message}`);
+      } finally {
+        busy = false;
+        if (!paused) startListening();   // 🔁 auto-restart
+      }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────
+    function setOrb(state, icon, label) {
+      orb.className = `orb ${state}`;
+      orb.textContent = icon;
+      stateLabel.textContent = label;
+    }
+
+    function addMsg(type, text) {
+      document.getElementById('empty')?.remove();
+      const div = document.createElement('div');
+      div.className = `msg ${type}`;
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function playAudio(b64) {
+      return new Promise((resolve, reject) => {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const url   = URL.createObjectURL(new Blob([bytes], { type: 'audio/mp3' }));
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = reject;
+        audio.play().catch(reject);
+      });
+    }
+
+    // ── Knowledge base ─────────────────────────────────────────────────
+    function toggleKB() {
+      const body  = document.getElementById('kbBody');
+      const arrow = document.getElementById('kbArrow');
+      const open  = body.classList.toggle('open');
+      arrow.textContent = open ? '▲ collapse' : '▼ expand';
+    }
+
+    async function ingest() {
+      const raw = document.getElementById('kbText').value.trim();
+      if (!raw) return;
+      const docs = raw.split(/\n{2,}/).map(d => d.trim()).filter(Boolean);
+      const res  = await fetch(`${API}/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents: docs }),
+      });
+      const data = await res.json();
+      document.getElementById('kbText').value = '';
+      document.getElementById('kbStats').textContent =
+        `✓ ${data.message} — ${data.total} total in DB`;
+    }
+
+    async function resetDB() {
+      if (!confirm('Clear the entire knowledge base?')) return;
+      const res  = await fetch(`${API}/reset`, { method: 'DELETE' });
+      const data = await res.json();
+      document.getElementById('kbStats').textContent = `✓ ${data.message}`;
+    }
+
+    fetch(`${API}/stats`).then(r => r.json()).then(d => {
+      if (d.documents_in_db > 0)
+        document.getElementById('kbStats').textContent =
+          `${d.documents_in_db} documents in knowledge base`;
+    }).catch(() => {});
+  </script>
+</body>
+</html>
